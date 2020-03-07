@@ -19,16 +19,8 @@ int main(){
 		return -1;
 	}
 
-	Mat bgr[3];
-	split(image,bgr);
-
 	imshow("original", image);
 	waitKey(0);
-
-	Mat single[3];
-	single[0] = Mat::zeros(image.rows, image.cols, CV_8UC1);
-	single[1] = Mat::zeros(image.rows, image.cols, CV_8UC1);
-	single[2] = Mat::zeros(image.rows, image.cols, CV_8UC1);
 	
 	Mat aux;
 
