@@ -24,18 +24,10 @@ int main(int argc, char *argv[]){
 		return -1;
 	}
 
-	cout << image.cols << ", " << image.rows << endl;
-	Mat separated(image.rows,3*image.cols,CV_8UC3);
+	imshow("Red", image & Scalar(0,0,255));
+	imshow("Blue", image & Scalar(255,0,0));
+	imshow("Green", image & Scalar(0,255,0));
 
-	for(int i=0;i<image.rows;i++){
-		for(int j=0;j<image.cols;j++){
-			separated.at<V3>(i,j)              = {image.at<V3>(i,j).b,0,0};
-			separated.at<V3>(i,j+image.cols)   = {0,image.at<V3>(i,j).g,0};
-			separated.at<V3>(i,j+2*image.cols) = {0,0,image.at<V3>(i,j).r};
-		}
-	}
-
-	imshow("separated", separated);
 	imshow("original", image);
 
 	waitKey(0);

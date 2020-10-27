@@ -7,7 +7,6 @@
 using namespace cv;
 using namespace std;
 
-
 int sat(int a){
 	return a < 256 ? a : 255;
 }
@@ -20,27 +19,35 @@ void aumentaBrilho(Mat& img,int delta){
 }
 
 int main(int argc,char **argv){
-	Mat image;
-	cv::String filename;
-	if(argc > 1)
-		filename = argv[1];
-	else
-		filename = "lena.jpeg";
+	if(argc != 6){
+		cout << "Numero de argumentos errado" << endl;
+		exit(1);
+	}
 
-	image = imread(filename,0);
+	int brilho, entrefaixa ,faixa;
+	brilho = atoi(argv[2]);
+	entrefaixa = atoi(argv[3]);
+	faixa = atoi(argv[4]);
+
+	Mat image;
+	cv::String filename(argv[1]);
+	cv::String output(argv[5]);
+
+	image = imread(filename,IMREAD_GRAYSCALE);
 
 	if(image.empty()){
 		cerr << "IMAGEM NAO EXiSTE" << endl;
 		return -1;
 	}
 
-	aumentaBrilho(image,150);
+	aumentaBrilho(image,brilho);
 
 	imshow("brilho",image);
 	waitKey(0);
 
-	int T = 10;
-	float dt = 0.8;
+	int T = faixa + entrefaixa;
+	float dt = faixa/(double)T;
+	cout << T <<  " " << dt << endl;
 
 	for(int i=0;i<image.cols;i++){
 		if(i % T < T*dt){
@@ -49,6 +56,7 @@ int main(int argc,char **argv){
 	}
 
 	imshow("tarjas",image);
+	imwrite(output,image);
 	waitKey(0);
 
 	return 0;
