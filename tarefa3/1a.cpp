@@ -70,6 +70,7 @@ void Hough(){
 	int H = img.rows;
 	using T = uchar;
 	vector<vector<vector<vector<T>>>> vote_table(W,vector<vector<vector<T>>>(H,vector<vector<T>>(90/RESO_ANG,vector<T>(min(W,H)/RESO_LADO,0))));
+
 	/* limites
 		centro:	[w-10,h-10]
 		angulo: [0, 90]
@@ -109,7 +110,6 @@ void Hough(){
 		}
 	}
 
-
 	qds = img.clone();
 	cvtColor(qds,qds,COLOR_GRAY2RGB);
 
@@ -145,6 +145,15 @@ int main(int argc, char *argv[]){
 	cv::String filename(argv[1]);
 	cout << "Abrindo " << filename << endl;
 	img = imread(filename, IMREAD_GRAYSCALE);
+
+	unsigned long long int memoriaNecessaria = img.cols*img.rows*(90.0/RESO_ANG)*(min(img.cols,img.rows)/(double)RESO_LADO);
+	cout << "Memoria Necessaria: " << memoriaNecessaria/(1<<20) << " MiB" << endl; 
+	cout << "Se voce nao tiver toda essa memoria diminua a resolucao da sua entrada!" << endl;
+	cout << "Digite y para continuar ou outra tecla para sair!" << endl;
+	if(cin.get() != 'y'){
+		cout << "Fechando..."<< endl;
+		return 1;
+	}	
 
 	imshow("Cantos",img);
 	detectar_cantos();
