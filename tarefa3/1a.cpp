@@ -1,4 +1,5 @@
-// detectar a partir de cantos
+//Identificar o quadrado por dois pontos A e B (diagonal)
+//detectar a partir de cantos
 
 #include <iostream>
 #include <map>
@@ -15,24 +16,32 @@
 
 using namespace std;
 using namespace cv;
+
 //#define DEBUG
-//Identificar o quadrado por dois pontos A e B (diagonal)
-Mat img,dst;
-int thresh = 250;
-int maxCorners = 200;
-int maxTrackBar = 400;
-vector<Point2f> corners;
+#define RESO_ANG 2
+#define RESO_LADO 2
+
 struct Quadrado{
 	int cx,cy,ang,l;
 };
 
-void callback(int, void*){
+// ========= GLOBAIS ===========
+Mat img,qds;
+vector<Quadrado> quadrados;
+
+// parametros do detector de cantos
+double minDistance = 2;
+int    blockSize = 3;
+int    gradientSize = 3;
+int    maxCorners = 200;
+double qualityLevel = 0.01;
+bool   useHarrisDetector = false;
+double k = 0.04;
+vector<Point2f> corners;
+// =============================
+
+void detectar_cantos(){
 	maxCorners = MAX(maxCorners, 1);
-    double qualityLevel = 0.01;
-    double minDistance = 10;
-    int blockSize = 3, gradientSize = 3;
-    bool useHarrisDetector = false;
-    double k = 0.04;
 
     Mat copy = img.clone();
 
@@ -53,29 +62,19 @@ void callback(int, void*){
     {
         circle( copy, corners[i], radius, Scalar(0), 2,8,0 );
     }
-	imshow("Input img",copy);
+	imshow("Cantos",copy);
 }
 
-int main(int argc, char *argv[]){
-	cv::String filename(argv[1]);
-	cout << "Abrindo " << filename << endl;
-	img = imread(filename, IMREAD_GRAYSCALE);
-
-	//int vote_table[700][700][361][990]; // vote_table[centro.x][centro.y][ang][diag]
+void Hough(){
 	int W = img.cols;
 	int H = img.rows;
-	#define RESO_ANG 2
-	#define RESO_LADO 2
-	vector<vector<vector<vector<int>>>> vote_table(W,vector<vector<vector<int>>>(H,vector<vector<int>>(90/RESO_ANG,vector<int>(min(W,H)/RESO_LADO,0))));
+	using T = uchar;
+	vector<vector<vector<vector<T>>>> vote_table(W,vector<vector<vector<T>>>(H,vector<vector<T>>(90/RESO_ANG,vector<T>(min(W,H)/RESO_LADO,0))));
 	/* limites
 		centro:	[w-10,h-10]
 		angulo: [0, 90]
 		lado  : [10, min(w,h)]
 	*/
-	imshow("Input img",img);
-	createTrackbar("thresh: ","Input img",&maxCorners ,maxTrackBar , callback); 
-	callback(0,0);
-	waitKey(0);
 
 	for(int i=0;i<corners.size();i++){
 		for(int j=0;j<corners.size();j++){
@@ -89,6 +88,7 @@ int main(int argc, char *argv[]){
 				int cy = int(centro.y);
 				int ang = (int(round(angulo)) % 90) / RESO_ANG ;
 				int l = round(lado)/RESO_LADO;
+
 				for(int ii=-1;ii<=1;ii++){
 				for(int jj=-1;jj<=1;jj++){
 				for(int kk=-1;kk<=1;kk++){
@@ -101,80 +101,75 @@ int main(int argc, char *argv[]){
 					vote_table[a][b][c][d] += 1;	
 				}}}}
 
+#ifdef DEBUG	
 				cout << corners[i] << " " << corners[j] << endl;
 				cout <<"("<<cx<< ","<<cy<<") "<< ang << " " << l  << endl;
+#endif
 			}
 		}
 	}
-		
-	
-	Mat qds = img.clone();
+
+
+	qds = img.clone();
 	cvtColor(qds,qds,COLOR_GRAY2RGB);
-	
-	vector<Quadrado> quadrados;
+
 	srand(time(0));
+
 	for(int cx=0;cx<W;cx++){
 	for(int cy=0;cy<H;cy++){
 	for(int ang=0;ang<90/RESO_ANG;ang++){
 	for(int l=0;l<min(W,H)/RESO_LADO;l++){
-#ifdef DEBUG	
-		if(vote_table[cx][cy][ang][l] > 0){
-			cout <<"("<<cx<< ","<<cy<<") "<< ang << " " << l  << endl;
-			cout << vote_table[cx][cy][ang][l] << endl;
-		}
-#endif
 		if(vote_table[cx][cy][ang][l] == 4){
 			Point2f c(cx,cy);
-			Point2f v(cos(ang*RESO_ANG),sin(ang*RESO_ANG));
 			bool flag = true;
 
 			for(int p=0;p<l*RESO_LADO;p++){
-				int dx = (rand() % (l*RESO_LADO)) -(l*RESO_LADO)/2;
-				int dy = (rand() % (l*RESO_LADO))-(l*RESO_LADO)/2;
-				dx *= 0.8;
-				dy *= 0.8;
+				int dx = 0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2);
+				int dy = 0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2);
+
 				uchar value = img.at<uchar>(c.y+dy,c.x+dx);
 				if(value > 240){
 					flag = false;
 					break;
 				}
-				else{
-				//	line(qds, c,Point2f(c.x+dx,c.y+dy), Scalar(255,0,0), 1);
-				}
-
 			}
-			/*
-			for(double factor=-l/2;factor<l/2;factor+=1){
-				uchar value = img.at<uchar>(c.y+(factor*RESO_LADO)*v.y,c.x+(factor*RESO_LADO)*v.x);
-				cout << int(value) << endl;
-				if(value > 240){
-					flag = false;
-					break;
-				}
-				else{
-					line(qds, c,Point2f(c.x+(factor*RESO_LADO)*v.x,c.y+(factor*RESO_LADO)*v.y), Scalar(255,0,0), 1);
-				}
-			}
-			*/
-
-			
 			if(flag){
 				quadrados.push_back({cx,cy,ang,l});
 			}
 		}
 	}}}}
-	vote_table.clear();
+}
 
+int main(int argc, char *argv[]){
+
+	cv::String filename(argv[1]);
+	cout << "Abrindo " << filename << endl;
+	img = imread(filename, IMREAD_GRAYSCALE);
+
+	imshow("Cantos",img);
+	detectar_cantos();
+	cout << "Aperte Enter..." << endl;
+	waitKey(0);
+
+	Hough();
+
+	map<pair<int,int>,Quadrado> qs;
 	for(auto& q : quadrados){
+		qs[{q.cx,q.cy}] = q;
+	}
+
+cout << quadrados.size()/12 << endl;
+	for(auto& p : qs){
+		Quadrado q = p.second;
+
 		RotatedRect rRect = RotatedRect(Point2f(q.cx,q.cy),Size2f(q.l*RESO_LADO,q.l*RESO_LADO),q.ang*RESO_ANG);
 		Point2f vertices[4];
 		rRect.points(vertices);
 		for (int i = 0; i < 4; i++)
 			line(qds, vertices[i], vertices[(i+1)%4], Scalar(0,255,0), 1);
+		//cout << q.cx << "," << q.cy << endl;
 	}
 
-	
-	//rectangle(qds,,,Scalar(0));
 	imshow("qqqq",qds);
 	imwrite("saida.jpg",qds);
 	waitKey(0);
