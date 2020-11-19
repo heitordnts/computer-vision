@@ -18,8 +18,8 @@ using namespace std;
 using namespace cv;
 
 //#define DEBUG
-#define RESO_ANG 2
-#define RESO_LADO 2
+#define RESO_ANG 1
+#define RESO_LADO 1
 
 struct Quadrado{
 	int cx,cy,ang,l;
@@ -118,14 +118,14 @@ void Hough(){
 	for(int cx=0;cx<W;cx++){
 	for(int cy=0;cy<H;cy++){
 	for(int ang=0;ang<90/RESO_ANG;ang++){
-	for(int l=0;l<min(W,H)/RESO_LADO;l++){
+	for(int l=1;l<min(W,H)/RESO_LADO;l++){
 		if(vote_table[cx][cy][ang][l] == 4){
 			Point2f c(cx,cy);
 			bool flag = true;
 
-			for(int p=0;p<l*RESO_LADO;p++){
-				int dx = 0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2);
-				int dy = 0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2);
+			for(int p=0,numPoints=20 + l*RESO_LADO;p<numPoints;p++){
+				int dx = int(0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2));
+				int dy = int(0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2));
 
 				uchar value = img.at<uchar>(c.y+dy,c.x+dx);
 				if(value > 240){
@@ -145,11 +145,15 @@ int main(int argc, char *argv[]){
 	cv::String filename(argv[1]);
 	cout << "Abrindo " << filename << endl;
 	img = imread(filename, IMREAD_GRAYSCALE);
+	if(img.empty()){
+		cout << "Erro ao abrir " << filename << endl;
+		return -1;
+	}
 
 	unsigned long long int memoriaNecessaria = img.cols*img.rows*(90.0/RESO_ANG)*(min(img.cols,img.rows)/(double)RESO_LADO);
 	cout << "Memoria Necessaria: " << memoriaNecessaria/(1<<20) << " MiB" << endl; 
 	cout << "Se voce nao tiver toda essa memoria diminua a resolucao da sua entrada!" << endl;
-	cout << "Digite y para continuar ou outra tecla para sair!" << endl;
+	cout << "Digite y para continuar ou outra tecla para sair!" << endl << "> ";
 	if(cin.get() != 'y'){
 		cout << "Fechando..."<< endl;
 		return 1;
@@ -163,11 +167,38 @@ int main(int argc, char *argv[]){
 	Hough();
 
 	map<pair<int,int>,Quadrado> qs;
-	for(auto& q : quadrados){
-		qs[{q.cx,q.cy}] = q;
+	vector<int> aux(quadrados.size(),0);
+
+	for(int i=0;i<quadrados.size();i++){
+		Quadrado qi = quadrados[i];
+		if(aux[i] != 0) continue;
+		aux[i] = i+1;
+		Quadrado qq=qi;
+		
+		int n = 1;
+		for(int j=i+1;j<quadrados.size();j++){
+			Quadrado qj = quadrados[j];
+			if(abs(qj.cx - qi.cx) < 5 && abs(qj.cy - qi.cy) < 5){
+				aux[j] = i+1;
+				qq.cx  += qj.cx;
+				qq.cy  += qj.cy;
+				qq.ang += qj.ang;
+				qq.l   += qj.l;
+				n++;
+			}
+		}
+		qq.cx  /= n;
+		qq.cy  /= n;
+		qq.ang /= n;
+		qq.l   /= n;
+
+		qs[{qq.cx,qq.cy}] = qq;
+		cerr << aux[i] << endl;
 	}
 
-cout << quadrados.size()/12 << endl;
+	//cout << quadrados.size() << endl;
+	cout << "Quantidade de quadrados: " << qs.size() << endl;
+
 	for(auto& p : qs){
 		Quadrado q = p.second;
 
@@ -175,8 +206,7 @@ cout << quadrados.size()/12 << endl;
 		Point2f vertices[4];
 		rRect.points(vertices);
 		for (int i = 0; i < 4; i++)
-			line(qds, vertices[i], vertices[(i+1)%4], Scalar(0,255,0), 1);
-		//cout << q.cx << "," << q.cy << endl;
+			line(qds, vertices[i], vertices[(i+1)%4], Scalar(0,255,0), 2);
 	}
 
 	imshow("qqqq",qds);
