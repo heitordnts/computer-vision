@@ -1,5 +1,11 @@
-//Identificar o quadrado por dois pontos A e B (diagonal)
-//detectar a partir de cantos
+// A ideia da transforma Hough eh a partir de uma informacao da entrada inferir 
+// um uma forma que pode ser parametrizada de alguma forma.
+// Nesse programa o quadrado foi parametrizado por centro, angulo e lado, 
+// e a informacao da entrada sao dois pontos que forma a diagonal do quadrado
+// a partir dessa diagonal podemos inferir um quadrado (centro, angulo, lado)
+
+// As limitacoes e a dependencia do detector cantos eh sabida
+// mas a ideia eh aplicar o conceito de uma forma diferente das convencionais
 
 #include <iostream>
 #include <map>
@@ -21,6 +27,19 @@ using namespace cv;
 #define RESO_ANG 1
 #define RESO_LADO 1
 
+template<int D, typename T>
+struct multidimensional_vector : public vector<multidimensional_vector<D - 1, T>> {
+  static_assert(D >= 1, "Vector dimension must be greater than zero!");
+  template<typename... Args>
+  multidimensional_vector(int n = 0, Args... args) : vector<multidimensional_vector<D - 1, T>>(n, multidimensional_vector<D - 1, T>(args...)) {
+  }
+};
+template<typename T>
+struct multidimensional_vector<1, T> : public vector<T> {
+  multidimensional_vector(int n = 0, const T& val = T()) : vector<T>(n, val) {
+  }
+};
+
 struct Quadrado{
 	int cx,cy,ang,l;
 };
@@ -30,10 +49,10 @@ Mat img,qds;
 vector<Quadrado> quadrados;
 
 // parametros do detector de cantos
-double minDistance = 2;
+double minDistance = 5; 
 int    blockSize = 3;
 int    gradientSize = 3;
-int    maxCorners = 200;
+int    maxCorners = 400;
 double qualityLevel = 0.01;
 bool   useHarrisDetector = false;
 double k = 0.04;
@@ -68,28 +87,26 @@ void detectar_cantos(){
 void Hough(){
 	int W = img.cols;
 	int H = img.rows;
-	using T = uchar;
-	vector<vector<vector<vector<T>>>> vote_table(W,vector<vector<vector<T>>>(H,vector<vector<T>>(90/RESO_ANG,vector<T>(min(W,H)/RESO_LADO,0))));
 
-	/* limites
-		centro:	[w-10,h-10]
-		angulo: [0, 90]
-		lado  : [10, min(w,h)]
-	*/
+	// tabela de votacao
+    multidimensional_vector<4,uchar> vote_table(W,H,90/RESO_ANG,min(W,H)/RESO_LADO);
 
+	// para cada diagonal(par de cantos) temos um possivel quadrado
 	for(int i=0;i<corners.size();i++){
 		for(int j=0;j<corners.size();j++){
 			if(i != j){
-				// representar em centro, angulo, diagonal
+				// representar em centro, angulo, lado
 				Point2f v = corners[i] - corners[j];
 				Point2f centro = corners[j] + 0.5*v;
-				double angulo = atan2(v.y,v.x)*(180.0/M_PI) + 180 + 45; //-pi to pi
+				double angulo = atan2(v.y,v.x)*(180.0/M_PI) + 180 + 45;
 				double lado = norm(v) / sqrt(2);
 				int cx = int(centro.x);
 				int cy = int(centro.y);
 				int ang = (int(round(angulo)) % 90) / RESO_ANG ;
 				int l = round(lado)/RESO_LADO;
-
+				
+				// alem de votar para o quadrado calculado votamos para os vizinhos dele tambem,
+				// para contornar erros de precisao
 				for(int ii=-1;ii<=1;ii++){
 				for(int jj=-1;jj<=1;jj++){
 				for(int kk=-1;kk<=1;kk++){
@@ -115,6 +132,7 @@ void Hough(){
 
 	srand(time(0));
 
+	// analisando a tabela de votacao
 	for(int cx=0;cx<W;cx++){
 	for(int cy=0;cy<H;cy++){
 	for(int ang=0;ang<90/RESO_ANG;ang++){
@@ -123,9 +141,10 @@ void Hough(){
 			Point2f c(cx,cy);
 			bool flag = true;
 
-			for(int p=0,numPoints=20 + l*RESO_LADO;p<numPoints;p++){
-				int dx = int(0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2));
-				int dy = int(0.8 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2));
+			// gera alguns pontos aleatorios para ver se o interior do quadrado eh preto
+			for(int p=0,numPoints=30 + l*RESO_LADO;p<numPoints;p++){
+				int dx = int(0.9 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2));
+				int dy = int(0.9 * ((rand() % (l*RESO_LADO)) - (l*RESO_LADO)/2));
 
 				uchar value = img.at<uchar>(c.y+dy,c.x+dx);
 				if(value > 240){
@@ -141,7 +160,10 @@ void Hough(){
 }
 
 int main(int argc, char *argv[]){
-
+	if( argc == 1 ){
+		cout << "Uso: executavel entrada" << endl;
+		return -1;
+	}
 	cv::String filename(argv[1]);
 	cout << "Abrindo " << filename << endl;
 	img = imread(filename, IMREAD_GRAYSCALE);
@@ -152,6 +174,11 @@ int main(int argc, char *argv[]){
 
 	unsigned long long int memoriaNecessaria = img.cols*img.rows*(90.0/RESO_ANG)*(min(img.cols,img.rows)/(double)RESO_LADO);
 	cout << "Memoria Necessaria: " << memoriaNecessaria/(1<<20) << " MiB" << endl; 
+	if(memoriaNecessaria > 3000ULL*(1<<20)){
+		cout << "Limite de memoria excedido!" <<  endl; 
+		return -1;
+	}
+
 	cout << "Se voce nao tiver toda essa memoria diminua a resolucao da sua entrada!" << endl;
 	cout << "Digite y para continuar ou outra tecla para sair!" << endl << "> ";
 	if(cin.get() != 'y'){
@@ -161,23 +188,28 @@ int main(int argc, char *argv[]){
 
 	imshow("Cantos",img);
 	detectar_cantos();
-	cout << "Aperte Enter..." << endl;
+	cout << "\nAperte Enter...\n" << endl;
 	waitKey(0);
+	cout << "Processando..." << endl;
 
 	Hough();
+	cout << "OK" << endl;
 
 	map<pair<int,int>,Quadrado> qs;
 	vector<int> aux(quadrados.size(),0);
 
+	// filtrando quadrados semelhantes
 	for(int i=0;i<quadrados.size();i++){
-		Quadrado qi = quadrados[i];
-		if(aux[i] != 0) continue;
+		Quadrado qi = quadrados[i]; // candidato a representante
+		if(aux[i] != 0) continue; // ja tem representante
+
 		aux[i] = i+1;
-		Quadrado qq=qi;
+		Quadrado qq=qi; // quadrado medio do grupo i+1
 		
 		int n = 1;
 		for(int j=i+1;j<quadrados.size();j++){
 			Quadrado qj = quadrados[j];
+			// se qj for similar a qi, qi vira representante dele
 			if(abs(qj.cx - qi.cx) < 5 && abs(qj.cy - qi.cy) < 5){
 				aux[j] = i+1;
 				qq.cx  += qj.cx;
@@ -193,12 +225,12 @@ int main(int argc, char *argv[]){
 		qq.l   /= n;
 
 		qs[{qq.cx,qq.cy}] = qq;
-		cerr << aux[i] << endl;
+		//cerr << aux[i] << endl;
 	}
 
-	//cout << quadrados.size() << endl;
 	cout << "Quantidade de quadrados: " << qs.size() << endl;
 
+	// desenha os quadrados
 	for(auto& p : qs){
 		Quadrado q = p.second;
 
@@ -209,7 +241,7 @@ int main(int argc, char *argv[]){
 			line(qds, vertices[i], vertices[(i+1)%4], Scalar(0,255,0), 2);
 	}
 
-	imshow("qqqq",qds);
+	imshow("Resultado",qds);
 	imwrite("saida.jpg",qds);
 	waitKey(0);
 	

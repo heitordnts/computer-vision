@@ -2,9 +2,9 @@
 
 CC = gcc
 GCC = g++
-CFLAGS = `pkg-config --cflags opencv`
-LIBS = `pkg-config --libs opencv`
+CFLAGS = `pkg-config --cflags opencv4`
+LIBS = `pkg-config --libs opencv4`
 
 .cpp: 
-	$(GCC) -Wall -Wunused -std=c++11 -O2 -g $(CFLAGS) $< -o $@ $(LIBS)
+	$(GCC) -Wall -Wunused -std=c++14 -O2 -g $(CFLAGS) $< -o $@ $(LIBS)
 
